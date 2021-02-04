@@ -371,7 +371,6 @@ summary {
 <div id="TOC">
 <ul>
 <li><a href="#abstract">Abstract</a></li>
-<li><a href="#skills-practiced">Skills practiced</a></li>
 <li><a href="#collect-the-data">Collect the data</a></li>
 <li><a href="#clean-the-data">Clean the data</a></li>
 <li><a href="#examining-the-data-can-this-really-work">Examining the data: Can this really work?</a><ul>
@@ -388,19 +387,22 @@ summary {
   font-size: 12pt;
   }
 </style>
+<hr />
+<p>My name’s Rishabh, and this project is a showcase for the skills I’ve learned studying algorithms and statistics. I’m studying to be a data scientist, a software engineer, or something in between. Labels can be hard.</p>
+<p>Anyhow, here’s the premise.</p>
 <div id="abstract" class="section level2">
 <h2>Abstract</h2>
-<p>My phone has a gyroscope and a barometer, which respectively measure rotational velocity and air pressure. This paper centers around the phenomenon that when I touch the screen, the barometer registers a spike in air pressure, likely because the force of my finger causes a volume deflection inside the phone. The gyroscope is susceptible to recording tremors in the hand holding the phone, but if the barometer can indicate <em>when</em> touch input occurs, the gyroscope can indicate <em>where</em> on the screen the touch input occurs.</p>
-<p>This could be applied to create a malicious background process which can read a user’s PIN code with access only to barometer and gyroscope sensor data. This report is a work in progress.</p>
-</div>
-<div id="skills-practiced" class="section level2">
-<h2>Skills practiced</h2>
-<p>Software Development</p>
+<p>My phone has a gyroscope and a barometer, which respectively measure rotational velocity and air pressure. This paper centers around the phenomenon that when I touch the screen, the barometer registers a spike in air pressure. This is likely because the force of my finger causes a volume deflection inside the phone. The gyroscope is susceptible to recording tremors in the hand holding the phone, but if the barometer can indicate <em>when</em> touch input occurs, the phone’s motion recorded by the gyroscope can indicate <em>where</em> on the screen the touch input occurs.</p>
+<p>This could be applied to create a malicious background process which can read a user’s PIN code with access only to device sensor data. This report is a work in progress.</p>
+<div id="skills-practiced-software-development" class="section level4">
+<h4>Skills practiced: Software Development</h4>
 <ul>
 <li>Android app, sensors API</li>
 <li>SQL</li>
 </ul>
-<p>Data Science</p>
+</div>
+<div id="skills-practiced-data-science" class="section level4">
+<h4>Skills practiced: Data Science</h4>
 <ul>
 <li>Data cleaning</li>
 <li>Denoising time-series via low-pass filter</li>
@@ -408,6 +410,7 @@ summary {
 <li>Data mining time-series</li>
 <li>Principal Component Analysis</li>
 </ul>
+</div>
 </div>
 <div id="collect-the-data" class="section level2">
 <h2>Collect the data</h2>
@@ -427,9 +430,12 @@ Type -27: touch data</p>
 </div>
 <div id="clean-the-data" class="section level2">
 <h2>Clean the data</h2>
-<p>Observation: <em>Each data tidbit is timestamped, but sensor events and touch events use different clocks.</em></p>
+<div id="observation-each-data-tidbit-is-timestamped-but-sensor-events-and-touch-events-use-different-clocks." class="section level4">
+<h4>Observation: Each data tidbit is timestamped, but sensor events and touch events use different clocks.</h4>
 <p>The Android API bases touch timestamps off of the “uptimeMillis” clock and bases sensor timestamps off of the “elapsedRealtimeNanos” clock. These are different time-counting systems, and so I have to convert them. I want to keep the sensor data as accurate as possible, and the touch data only needs to be approximate, so I choose to convert the touch data to match the elapsedRealtimeNanos clock.</p>
-<p><em>I should expect the min/max timestamp to match for all datatypes.</em></p>
+</div>
+<div id="i-should-expect-the-minmax-timestamp-to-match-for-all-datatypes." class="section level4">
+<h4>I should expect the min/max timestamp to match for all datatypes.</h4>
 <p>This is visibly false. Note that I have to remove some of the leading sig figs because the difference occurs in less-significant digits and would otherwise be truncated by R’s output.</p>
 <pre class="r"><code>accelerometer %&gt;% select(time) %&gt;% mutate(time = time %% 1e+12) %&gt;% summary()</code></pre>
 <pre><code>##       time          
@@ -452,14 +458,14 @@ uncalibrated_touch %&gt;% select(time) %&gt;% mutate(time = time %% 1e+11) %&gt;
 ##  Max.   :120664846</code></pre>
 <!--Type -1: uptimeMillis at start and at stop, for touch events (2 data points)
 Type -2: elapsedRealtimeNanos at start and at stop, for sensor events (2 data points)-->
-<p>To convert from millis to nanos, the equation is <code>y = mx+b</code> where <code>y</code> is in nanos, <code>x</code> is in millis, <code>m</code> is the slope between them (should expect 10^6) and <code>b</code> is the y-intercept.</p>
+<p>So let’s calibrate the touch data. To convert from millis to nanos, the equation is <code>y = mx+b</code> where <code>y</code> is in nanos, <code>x</code> is in millis, <code>m</code> is the slope between them (should expect 10^6) and <code>b</code> is the y-intercept.</p>
 <p>To perform the conversion, my app also records two data points at the start and at the stop.</p>
 <p>After calculating, we can confirm the slope using the secant between the start and end points.</p>
 <pre class="r"><code>m = (elapsedRealtimeNanosEnd - elapsedRealtimeNanosStart) / (uptimeMillisEnd - uptimeMillisStart)
 (m - 1e+6)/1e+6*100 # percent error from 10^6</code></pre>
 <pre><code>## [1] -0.0001536057</code></pre>
 <p>The above percent-error is very close to zero.</p>
-<p>Then for a point <span class="math display">\[(x_1,y_1)\]</span>, I can calculate <span class="math display">\[b = y_1 - mx_1\]</span>. Then we can convert all of the time data for the touch input</p>
+<p>Then for a point <span class="math display">\[(x_1,y_1),\]</span> I can calculate <span class="math display">\[b = y_1 - mx_1.\]</span> Then we can convert all of the time data for the touch input</p>
 <pre class="r"><code>b = elapsedRealtimeNanosEnd - m*uptimeMillisEnd
 
 touch &lt;- uncalibrated_touch %&gt;% 
@@ -474,6 +480,7 @@ touch %&gt;% select(time) %&gt;% mutate(time = time %% 1e+12) %&gt;% summary()</
 ##  3rd Qu.:3.784e+11  
 ##  Max.   :3.886e+11</code></pre>
 <p>That looks better! The touch clock matches the rest of the sensors’ clock.</p>
+</div>
 </div>
 <div id="examining-the-data-can-this-really-work" class="section level2">
 <h2>Examining the data: Can this really work?</h2>
